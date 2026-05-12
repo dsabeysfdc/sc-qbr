@@ -1,0 +1,808 @@
+<!--
+=============================================================================
+  SERVICE CLOUD SUPPORT — FY27 BUSINESS SIMULATOR
+  Salesforce Support Team QBR Tool
+  Built with Claude Code (claude.ai/code)
+=============================================================================
+
+  PURPOSE
+  -------
+  Interactive scenario planner for the Service Cloud Support team QBR.
+  Tells the Agentforce impact story across four lenses:
+    1. Case volume trends (Service + Sales Cloud, FY26 actuals)
+    2. Case origin shift (H&T Submission collapse vs ASA Case explosion)
+    3. Agentforce deflection performance (Aug-26 to Apr-27 actuals)
+    4. Capacity freed and redeployed to Agentforce Support team
+
+  TABS USED FROM SOURCE WORKBOOK
+  --------------------------------
+  Source: Service Inflow FYTD Comparsion.xlsx
+
+  Summary_Support Case volume
+    → Service Cloud monthly totals Feb-25 to Apr-26 (15 months)
+    → Sales Cloud monthly totals (same period)
+    → Industry Cloud monthly totals (same period)
+    → Combined totals and volume share trend
+
+  Summary_AgF Volume by Cloud
+    → Service Cloud Agentforce on H&T: total interactions, escalations, deflection %
+    → Aug-26 to Apr-27 (9 months, Salesforce FY27 Q3–Q4)
+    → Sales Cloud and Industry Cloud AgF data (for reference)
+
+  Case Origin wise Raw Data
+    → Raw case-level data: month, origin, product topic, count
+    → Used to aggregate Service Cloud origin breakdown
+    → Only two comparison periods exist: Feb-25/Mar-25 (FY26) and Feb-26/Mar-26 (FY27)
+    → Shows H&T Submission vs ASA Case vs Chat vs Internal vs Phone
+
+  Service - Analysis
+    → Product topic numerical change: FY26 (Feb-Mar 2025) → FY27 (Feb-Mar 2026)
+    → Attribution categories: Direct Shift to Sales, Systemic Drop, Core Service Decline,
+       Growth Offsets, Experience Cloud
+    → Case origin change totals (H&T -38,063; ASA +17,615; Chat +3,707)
+
+  Volume Trend by Complexity
+    → Service Cloud breakdown by complexity category and cloud (Leya's Org)
+    → Chat volume, case volume, voice/phone volume by success tier
+
+  Copy of Sheet6 / Common Topics Analysis
+    → FY26 vs FY27 comparison for shared product topics (Sales + Service combined)
+    → Volume share shift: Service went from 31.3% (Feb-25) to 21.4% (Apr-26) of combined
+
+  KEY DATA CONSTANTS
+  ------------------
+  PEAK_FY26         = 20,550   (Jun-25, highest Service Cloud monthly volume)
+  BASELINE_APR26    = 10,205   (Apr-26, last actual Service Cloud month)
+  SERVICE_FY26_AVG  = 16,425   (arithmetic mean of 15 monthly actuals)
+  AGF_FY27_AVG_DEFL = 68.6%   (weighted average deflection rate Aug-26 to Apr-27)
+
+  CASE ORIGIN CONTEXT (Service Cloud, all product topics)
+  Note: Origin totals are broader than the core 8-topic service summary because
+  they include Field Service, Digital Engagement, Service Cloud Voice, etc.
+  FY26 avg (Feb-Mar 2025): ~34,790 cases/mo — H&T Submission = 81% of origin
+  FY27 avg (Feb-Mar 2026): ~27,210 cases/mo — H&T Submission = 34%, ASA Case = 33%
+
+  SIMULATION LOGIC
+  ----------------
+  baseline_volume   = expected monthly inbound before Agentforce
+  deflection_rate   = % of interactions Agentforce resolves without human
+  agf_volume_growth = additional interactions routed through AgF (on top of baseline)
+  redeployment_pct  = % of freed capacity directed to Agentforce Support team
+
+  Derived:
+    total_interactions  = baseline × (1 + agf_growth/100)
+    deflected           = total_interactions × deflection_rate/100
+    human_case_load     = total_interactions − deflected
+    freed_vs_peak       = max(0, PEAK_FY26 − human_case_load)
+    redeployed          = freed_vs_peak × redeployment_pct/100
+
+  ADAPTING FOR ANOTHER SUPPORT TEAM
+  -----------------------------------
+  1. Replace SVC_MONTHLY, SALES_MONTHLY arrays with your team's monthly actuals.
+  2. Replace FY27_AGF with your Agentforce channel actuals.
+  3. Replace ORIGIN_FY26 / ORIGIN_FY27 with your origin breakdown data.
+  4. Replace VOLUME_DRIVERS with your product topic change analysis.
+  5. Update PEAK_FY26, BASELINE_APR26 constants.
+  6. Adjust DEFAULTS object slider values.
+
+  DEPENDENCIES
+  ------------
+  Chart.js 4.4.0 (CDN — requires internet connection)
+  To make offline: download chart.umd.min.js and replace CDN <script> tag.
+
+=============================================================================
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Support Business Simulator — Service Cloud FY27</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    /* ── Salesforce Corporate Template 2026 ── */
+    :root {
+      --sf-blue:       #058DC7;
+      --sf-dark-blue:  #032D60;
+      --sf-green:      #158158;
+      --sf-bg:         #CFE9FE;
+      --sf-white:      #FFFFFF;
+      --sf-light-grey: #F3F3F3;
+      --sf-mid-grey:   #DDEBFF;
+      --sf-text:       #032D60;
+      --sf-subtle:     #5A7FA8;
+      --sf-amber:      #b8860b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: var(--sf-bg);
+      color: var(--sf-text);
+    }
+
+    .sf-header {
+      background: var(--sf-dark-blue);
+      padding: 14px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .sf-header-logo { color: white; font-size: 18px; font-weight: 700; letter-spacing: 0.04em; font-style: italic; }
+    .sf-header-title { color: white; font-size: 15px; font-weight: 700; }
+    .sf-header-sub { color: #a8c4e0; font-size: 12px; margin-top: 2px; }
+
+    .sf-title-band { background: var(--sf-blue); padding: 16px 32px 14px; margin-bottom: 28px; }
+    .sf-title-band h1 { color: white; font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+    .sf-title-band .subtitle { color: #d0eefa; font-size: 12px; }
+
+    .layout { display: flex; gap: 24px; align-items: flex-start; padding: 0 32px 32px; }
+    .charts-col { display: flex; flex-direction: column; gap: 20px; flex: 1; min-width: 0; }
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+    .chart-card {
+      background: var(--sf-white); border-radius: 6px; padding: 20px;
+      box-shadow: 0 2px 8px rgba(3,45,96,0.10);
+      border-top: 3px solid var(--sf-blue);
+    }
+    .chart-title { font-size: 13px; font-weight: 700; color: var(--sf-dark-blue); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .chart-sub { font-size: 11px; color: var(--sf-subtle); margin-bottom: 14px; }
+
+    .controls-card {
+      background: var(--sf-white); border-radius: 6px; padding: 20px; width: 280px;
+      box-shadow: 0 2px 8px rgba(3,45,96,0.10);
+      border-top: 4px solid #ED7D31;
+    }
+    .controls-card h2 { font-size: 13px; font-weight: 700; margin-bottom: 18px; color: var(--sf-dark-blue); text-transform: uppercase; letter-spacing: 0.06em; }
+    .summary-card {
+      background: var(--sf-white); border-radius: 6px; padding: 16px 20px;
+      box-shadow: 0 2px 8px rgba(3,45,96,0.10);
+      border-top: 4px solid var(--sf-green);
+      margin-top: 16px;
+    }
+    .summary-card h3 { font-size: 12px; font-weight: 700; color: var(--sf-dark-blue); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
+
+    .lever-section { border-radius: 5px; padding: 10px 12px; margin-bottom: 12px; }
+    .lever-section.demand   { background: #fff8f0; border: 1px solid #f4c87a; }
+    .lever-section.capacity { background: #f0f7ff; border: 1px solid #b0d0ee; }
+    .lever-section.redeploy { background: #f0faf5; border: 1px solid #a8d5bc; }
+    .lever-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+    .lever-section.demand .lever-section-label   { color: #c07000; }
+    .lever-section.capacity .lever-section-label { color: var(--sf-blue); }
+    .lever-section.redeploy .lever-section-label { color: var(--sf-green); }
+
+    .slider-row { margin-bottom: 10px; }
+    .slider-label { font-size: 11px; font-weight: 600; color: var(--sf-text); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
+    .slider-value { font-size: 14px; font-weight: 700; color: var(--sf-dark-blue); }
+    .slider-sublabel { font-size: 10px; color: var(--sf-subtle); margin-top: 2px; min-height: 14px; }
+    input[type=range] { width: 100%; height: 4px; cursor: pointer; accent-color: var(--sf-blue); }
+    .reset-btn { font-size: 10px; padding: 2px 6px; border: 1px solid #f4c87a; border-radius: 3px; background: #fff8f0; color: #b8860b; cursor: pointer; font-family: Arial, sans-serif; font-weight: 600; }
+
+    .snap-row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; border-bottom: 1px solid #f0f4f8; font-size: 12px; }
+    .snap-row:last-child { border-bottom: none; }
+    .snap-label { color: var(--sf-subtle); font-size: 11px; }
+    .snap-val { font-weight: 700; color: var(--sf-dark-blue); }
+    .delta { font-weight: 600; font-size: 11px; margin-left: 4px; }
+    .delta.good { color: var(--sf-green); }
+    .delta.warn { color: #c85000; }
+
+    .story-banner-label { font-size: 11px; color: var(--sf-subtle); padding: 0 32px 8px; }
+    .story-banner {
+      display: flex; gap: 0; padding: 0 32px 24px;
+    }
+    .story-step {
+      flex: 1; background: var(--sf-white); border-radius: 6px; padding: 14px 16px;
+      box-shadow: 0 2px 6px rgba(3,45,96,0.08);
+    }
+    .story-step + .story-step { margin-left: 0; }
+    .story-arrow { display: flex; align-items: center; padding: 0 8px; color: var(--sf-subtle); font-size: 18px; font-weight: 300; }
+    .story-step-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sf-subtle); margin-bottom: 4px; }
+    .story-step-value { font-size: 22px; font-weight: 700; color: var(--sf-dark-blue); }
+    .story-step-detail { font-size: 10px; color: var(--sf-subtle); margin-top: 2px; }
+
+    .origin-legend { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+    .origin-badge { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--sf-text); }
+    .origin-badge span { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+    .callout-box { background: #f0f7ff; border: 1px solid #b0d0ee; border-radius: 5px; padding: 10px 14px; font-size: 11px; color: var(--sf-text); margin-top: 12px; line-height: 1.6; }
+    .callout-box strong { color: var(--sf-dark-blue); }
+  </style>
+</head>
+<body>
+
+<div class="sf-header">
+  <div class="sf-header-logo">salesforce</div>
+  <div>
+    <div class="sf-header-title">Support Business Simulator</div>
+    <div class="sf-header-sub">Service Cloud · FY27 QBR · Agentforce Impact Analysis</div>
+  </div>
+</div>
+
+<div class="sf-title-band">
+  <h1>Support Business Simulator — Service Cloud FY27</h1>
+  <div class="subtitle">FY26 actuals (Feb-25 – Apr-26) · Agentforce deflection performance · Capacity redeployment scenarios</div>
+</div>
+
+<div class="story-banner-label">How Agentforce reshapes agent workload — adjust levers to model your scenario</div>
+<div class="story-banner">
+  <div class="story-step">
+    <div class="story-step-label">Inbound Volume</div>
+    <div class="story-step-value" id="storyVolume">—</div>
+    <div class="story-step-detail" id="storyVolumeDetail">interactions/month</div>
+  </div>
+  <div class="story-arrow">→</div>
+  <div class="story-step">
+    <div class="story-step-label">Deflected by Agentforce</div>
+    <div class="story-step-value" id="storyDeflected">—</div>
+    <div class="story-step-detail" id="storyDeflectedDetail">resolved without a human</div>
+  </div>
+  <div class="story-arrow">→</div>
+  <div class="story-step">
+    <div class="story-step-label">Human Case Load</div>
+    <div class="story-step-value" id="storyHuman">—</div>
+    <div class="story-step-detail" id="storyHumanDetail">cases reach human agents</div>
+  </div>
+  <div class="story-arrow">→</div>
+  <div class="story-step">
+    <div class="story-step-label">Capacity Freed vs Peak</div>
+    <div class="story-step-value" id="storyFreed">—</div>
+    <div class="story-step-detail" id="storyFreedDetail">vs FY26 peak of 20,550</div>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- ── Charts column ── -->
+  <div class="charts-col">
+
+    <!-- Chart 1: Monthly Volume Trend -->
+    <div class="chart-card">
+      <div class="chart-title">Monthly Case Volume — Service &amp; Sales Cloud</div>
+      <div class="chart-sub">FY26 actuals (Feb-25 to Apr-26) · Service Cloud (Leya's Org) + Sales Cloud · Source: Summary_Support Case volume</div>
+      <canvas id="chart1" height="100"></canvas>
+      <div class="callout-box" style="margin-top:14px;">
+        <strong>Overall platform:</strong> Combined inflow peaked Jun-25 at 61,983 cases/mo and reached 47,579 by Apr-26 (−23.2%).
+        Service Cloud's share fell from <strong>31.3%</strong> (Feb-25) to <strong>21.4%</strong> (Apr-26) as H&amp;T Submission cases shifted origin or were deflected by Agentforce.
+        Sales Cloud grew from <strong>68.3%</strong> to <strong>78.2%</strong> of combined volume over the same period.
+      </div>
+    </div>
+
+    <!-- Chart 2: Case Origin Shift -->
+    <div class="chart-card">
+      <div class="chart-title">Case Origin Shift — Service Cloud</div>
+      <div class="chart-sub">FY26 (Feb–Mar 2025 avg) vs FY27 (Feb–Mar 2026 avg) · All Service Cloud product topics · Source: Case Origin wise Raw Data</div>
+      <canvas id="chart2" height="110"></canvas>
+      <div class="callout-box" style="margin-top:14px;">
+        <strong>H&amp;T Submission collapsed −67%</strong> (28,385 → 9,351/mo): these interactions now route through Agentforce first.
+        <strong>ASA Case exploded +6,203%</strong> (142 → 8,950/mo): ASA = Agentforce Service Agent cases escalated to humans.
+        <strong>Chat +40%, Phone +288%</strong>: complex cases increasingly choose live channels.
+        <em>Same pattern in Sales Cloud: H&amp;T −72%, ASA +11,000%.</em>
+      </div>
+    </div>
+
+    <!-- Charts row: AgF Deflection + Capacity freed -->
+    <div class="charts-row">
+      <!-- Chart 3: AgF Deflection -->
+      <div class="chart-card">
+        <div class="chart-title">Agentforce Deflection Rate</div>
+        <div class="chart-sub">Service Cloud H&amp;T channel · Aug-26 to Apr-27 · Source: Summary_AgF Volume by Cloud</div>
+        <canvas id="chart3" height="180"></canvas>
+      </div>
+
+      <!-- Chart 4: Capacity Freed vs Redeployed -->
+      <div class="chart-card">
+        <div class="chart-title">Capacity Freed vs Redeployed</div>
+        <div class="chart-sub">Based on slider settings · quarterly estimate vs FY26 peak (20,550/mo)</div>
+        <canvas id="chart4" height="180"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 5: Volume Change Drivers -->
+    <div class="chart-card">
+      <div class="chart-title">Volume Change by Product Topic</div>
+      <div class="chart-sub">Service Cloud · FY26 → FY27 (Feb–Mar period, cases) · Source: Service - Analysis · Colour = attribution category</div>
+      <canvas id="chart5" height="120"></canvas>
+    </div>
+
+  </div>
+
+  <!-- ── Right column: controls + summary ── -->
+  <div style="display:flex; flex-direction:column; gap:0; width:280px; position:sticky; top:20px; align-self:flex-start;">
+
+    <div class="controls-card">
+      <h2>Scenario Levers</h2>
+
+      <!-- Demand -->
+      <div class="lever-section demand">
+        <div class="lever-section-label">Demand</div>
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Baseline Volume (cases/mo)</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="slider-value" id="baselineDisplay">10,205</span>
+              <button class="reset-btn" onclick="document.getElementById('baselineSlider').value=10205;update();">reset</button>
+            </div>
+          </div>
+          <input type="range" id="baselineSlider" min="5000" max="25000" step="100" value="10205" oninput="update()">
+          <div class="slider-sublabel" id="baselineSublabel">Apr-26 actual (most recent month)</div>
+        </div>
+      </div>
+
+      <!-- Agentforce capacity -->
+      <div class="lever-section capacity">
+        <div class="lever-section-label">Agentforce</div>
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>Deflection Rate</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="slider-value" id="deflectionDisplay">68%</span>
+              <button class="reset-btn" onclick="document.getElementById('deflectionSlider').value=68;update();">reset</button>
+            </div>
+          </div>
+          <input type="range" id="deflectionSlider" min="30" max="95" step="1" value="68" oninput="update()">
+          <div class="slider-sublabel" id="deflectionSublabel">FY27 weighted average: 68%</div>
+        </div>
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>AgF Volume Growth</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="slider-value" id="agfGrowthDisplay">+20%</span>
+              <button class="reset-btn" onclick="document.getElementById('agfGrowthSlider').value=20;update();">reset</button>
+            </div>
+          </div>
+          <input type="range" id="agfGrowthSlider" min="0" max="100" step="5" value="20" oninput="update()">
+          <div class="slider-sublabel" id="agfGrowthSublabel">Additional interactions routed via AgF</div>
+        </div>
+      </div>
+
+      <!-- Redeployment -->
+      <div class="lever-section redeploy">
+        <div class="lever-section-label">Capacity Redeployment</div>
+        <div class="slider-row">
+          <div class="slider-label">
+            <span>% to AgF Support Team</span>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span class="slider-value" id="redeployDisplay">40%</span>
+              <button class="reset-btn" onclick="document.getElementById('redeploySlider').value=40;update();">reset</button>
+            </div>
+          </div>
+          <input type="range" id="redeploySlider" min="0" max="100" step="5" value="40" oninput="update()">
+          <div class="slider-sublabel" id="redeploySublabel">Freed capacity redirected to AgF Support</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary card -->
+    <div class="summary-card">
+      <h3>Scenario Snapshot</h3>
+      <div class="snap-row">
+        <span class="snap-label">Inbound volume</span>
+        <span class="snap-val" id="snapInbound">—</span>
+      </div>
+      <div class="snap-row">
+        <span class="snap-label">vs FY26 peak</span>
+        <span class="snap-val" id="snapVsPeak">—</span>
+      </div>
+      <div class="snap-row">
+        <span class="snap-label">Deflected/mo</span>
+        <span class="snap-val" id="snapDeflected">—</span>
+      </div>
+      <div class="snap-row">
+        <span class="snap-label">Deflection rate</span>
+        <span class="snap-val" id="snapDeflRate">—</span>
+      </div>
+      <div class="snap-row">
+        <span class="snap-label">Human case load</span>
+        <span class="snap-val" id="snapHuman">—</span>
+      </div>
+      <div class="snap-row">
+        <span class="snap-label">Capacity freed</span>
+        <span class="snap-val" id="snapFreed">—</span>
+      </div>
+      <div class="snap-row">
+        <span class="snap-label">→ AgF Support</span>
+        <span class="snap-val" id="snapRedeployed">—</span>
+      </div>
+      <div class="snap-row">
+        <span class="snap-label">Buffer retained</span>
+        <span class="snap-val" id="snapBuffer">—</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // ============================================================
+  //  DATA — sourced from all relevant tabs of the workbook
+  // ============================================================
+
+  // Service Cloud monthly case volumes (Feb-25 to Apr-26)
+  // Source: Summary_Support Case volume, R23
+  const SVC_MONTHLY = [19799,19184,18660,19107,20550,17909,17387,17883,16431,12456,11070,14701,12735,12756,10205];
+
+  // Sales Cloud monthly case volumes (same period)
+  // Source: Summary_Support Case volume, R11
+  const SALES_MONTHLY = [43259,42763,39999,40959,41169,41726,36847,45394,47635,37783,31656,39616,40203,43854,37225];
+
+  // Industry Cloud monthly case volumes (same period)
+  // Source: Summary_Support Case volume, R35
+  const INDUSTRY_MONTHLY = [252,285,230,245,264,224,212,223,291,207,167,172,197,158,149];
+
+  // Combined totals
+  const COMBINED_MONTHLY = SVC_MONTHLY.map((v,i) => v + SALES_MONTHLY[i] + INDUSTRY_MONTHLY[i]);
+
+  // Monthly labels (Salesforce FY26: Feb-25 to Apr-26)
+  const FY26_LABELS = ['Feb-25','Mar-25','Apr-25','May-25','Jun-25','Jul-25','Aug-25','Sep-25','Oct-25','Nov-25','Dec-25','Jan-26','Feb-26','Mar-26','Apr-26'];
+
+  // Agentforce on Service Cloud H&T channel (Aug-26 to Apr-27, FY27 Q3–Q4)
+  // Source: Summary_AgF Volume by Cloud, Service Cloud rows
+  const FY27_AGF = [
+    { label:'Aug-26', total:25539,  escalated:7932,  defl:68.9 },
+    { label:'Sep-26', total:55907,  escalated:15807, defl:71.7 },
+    { label:'Oct-26', total:62627,  escalated:13775, defl:78.0 },
+    { label:'Nov-26', total:36204,  escalated:12043, defl:66.7 },
+    { label:'Dec-26', total:37035,  escalated:11079, defl:70.1 },
+    { label:'Jan-27', total:36786,  escalated:14665, defl:60.1 },
+    { label:'Feb-27', total:34861,  escalated:13302, defl:61.8 },
+    { label:'Mar-27', total:37490,  escalated:12930, defl:65.5 },
+    { label:'Apr-27', total:44883,  escalated:11575, defl:74.2 },
+  ];
+
+  // Case Origin breakdown — Service Cloud (all product topics)
+  // Source: Case Origin wise Raw Data (aggregated, Feb-Mar comparison periods only)
+  // FY26 = average of Feb-25 and Mar-25 monthly values
+  // FY27 = average of Feb-26 and Mar-26 monthly values
+  const ORIGIN_LABELS = ['H&T Submission','ASA Case','Chat','Internal','Phone','Other'];
+  const ORIGIN_FY26   = [28385, 142,  4609, 1202, 152, 303]; // avg/month FY26 (Feb-Mar 2025)
+  const ORIGIN_FY27   = [9351,  8950, 6463, 1610, 590, 245]; // avg/month FY27 (Feb-Mar 2026)
+
+  // Volume Change by Product Topic (FY26 → FY27, Feb-Mar comparison period)
+  // Source: Service - Analysis, R5-R15
+  // category drives colour coding
+  const VOLUME_DRIVERS = [
+    { label:'How-to/Setup/Config',        delta:-8274, cat:'Systemic Drop'       },
+    { label:'Cases/Knowledge/Console',    delta:-2655, cat:'Core Service Decline' },
+    { label:'Email Delivery',             delta:-1512, cat:'Direct Shift to Sales'},
+    { label:'Reports & Dashboards',       delta:-1507, cat:'Core Service Decline' },
+    { label:'Feature Activation/Limits',  delta:-1386, cat:'Core Service Decline' },
+    { label:'Experience Builder',         delta:-974,  cat:'Experience Cloud'     },
+    { label:'Developer Support',          delta:-877,  cat:'Direct Shift to Sales'},
+    { label:'Field Service',              delta:-633,  cat:'Core Service Decline' },
+    { label:'Other Topics (Net)',         delta:-563,  cat:'Other'                },
+    { label:'Security & Activations',     delta:927,   cat:'Growth'               },
+    { label:'Agentforce-Service',         delta:2187,  cat:'Growth'               },
+  ];
+
+  const DRIVER_COLOURS = {
+    'Systemic Drop':        '#e05c00',
+    'Core Service Decline': '#4472C4',
+    'Direct Shift to Sales':'#7030A0',
+    'Experience Cloud':     '#5A9BD5',
+    'Other':                '#9E9E9E',
+    'Growth':               '#158158',
+  };
+
+  // Key constants
+  const PEAK_FY26      = 20550;  // Jun-25 peak
+  const BASELINE_APR26 = 10205;  // Apr-26 last actual
+  const FY26_AVG       = Math.round(SVC_MONTHLY.reduce((s,v)=>s+v,0)/SVC_MONTHLY.length);
+
+  // Slider defaults
+  const DEFAULTS = { baseline:10205, deflection:68, agfGrowth:20, redeploy:40 };
+
+  // ── Utility ──
+  function fmt(n) { return Math.round(n).toLocaleString(); }
+  function pct(n) { return n.toFixed(1)+'%'; }
+  function sign(n) { return n>=0?'+':''; }
+
+  // ============================================================
+  //  CHART 1 — Monthly Volume Trend (Service + Sales + Combined)
+  // ============================================================
+  const trendShadingPlugin = {
+    id:'trendShading',
+    beforeDraw(chart) {
+      const {ctx,chartArea,scales} = chart;
+      if(!chartArea) return;
+      const x = scales.x;
+      const w = x.getPixelForValue(1)-x.getPixelForValue(0);
+      const half = w/2;
+      ctx.save();
+      ctx.fillStyle='rgba(3,45,96,0.04)';
+      ctx.fillRect(x.getPixelForValue(0)-half, chartArea.top, x.getPixelForValue(14)+half-(x.getPixelForValue(0)-half), chartArea.bottom-chartArea.top);
+      ctx.restore();
+    }
+  };
+
+  // Projected continuation from Apr-26 based on slider
+  const trend_svc_proj  = new Array(FY26_LABELS.length).fill(null);
+  const trend_sales_proj = new Array(FY26_LABELS.length).fill(null);
+
+  const chart1 = new Chart(document.getElementById('chart1'), {
+    type:'line',
+    plugins:[trendShadingPlugin],
+    data:{
+      labels: FY26_LABELS,
+      datasets:[
+        {
+          label:'Service Cloud (actual)',
+          data: SVC_MONTHLY,
+          borderColor:'#4472C4', backgroundColor:'rgba(68,114,196,0.08)',
+          borderWidth:2.5, pointRadius:4, fill:false
+        },
+        {
+          label:'Sales Cloud (actual)',
+          data: SALES_MONTHLY,
+          borderColor:'#ED7D31', backgroundColor:'rgba(237,125,49,0.06)',
+          borderWidth:2, pointRadius:4, fill:false
+        },
+        {
+          label:'Combined (actual)',
+          data: COMBINED_MONTHLY,
+          borderColor:'#7030A0', backgroundColor:'transparent',
+          borderWidth:1.5, pointRadius:3, borderDash:[4,3], fill:false
+        },
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{position:'bottom', labels:{font:{size:11},boxWidth:14}},
+        tooltip:{callbacks:{label:ctx=>' '+ctx.dataset.label+': '+fmt(ctx.raw)}}
+      },
+      scales:{
+        y:{grid:{color:'rgba(0,0,0,0.06)'}, ticks:{callback:v=>fmt(v)},
+           title:{display:true,text:'Cases/month',font:{size:11}}},
+        x:{grid:{display:false}, ticks:{font:{size:10}}}
+      }
+    }
+  });
+
+  // ============================================================
+  //  CHART 2 — Case Origin Shift (FY26 vs FY27)
+  // ============================================================
+  const ORIGIN_COLOURS = ['#4472C4','#ED7D31','#A9D18E','#5A7FA8','#FFE699','#BFBFBF'];
+
+  const chart2 = new Chart(document.getElementById('chart2'), {
+    type:'bar',
+    data:{
+      labels: ORIGIN_LABELS,
+      datasets:[
+        {
+          label:'FY26 avg/mo (Feb-Mar 2025)',
+          data: ORIGIN_FY26,
+          backgroundColor: ORIGIN_COLOURS.map(c=>c+'CC'),
+          borderColor: ORIGIN_COLOURS,
+          borderWidth:1
+        },
+        {
+          label:'FY27 avg/mo (Feb-Mar 2026)',
+          data: ORIGIN_FY27,
+          backgroundColor: ORIGIN_COLOURS.map(c=>c+'55'),
+          borderColor: ORIGIN_COLOURS,
+          borderWidth:1, borderDash:[4,3]
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{position:'bottom', labels:{font:{size:11},boxWidth:14}},
+        tooltip:{
+          callbacks:{
+            label:ctx=>{
+              const fy26 = ORIGIN_FY26[ctx.dataIndex];
+              const fy27 = ORIGIN_FY27[ctx.dataIndex];
+              const chg = fy27-fy26;
+              const pctChg = fy26>0 ? ((chg/fy26)*100).toFixed(0) : 'N/A';
+              if(ctx.datasetIndex===0) return ' FY26: '+fmt(ctx.raw)+'/mo';
+              return ' FY27: '+fmt(ctx.raw)+'/mo  ('+sign(chg)+fmt(chg)+', '+sign(Number(pctChg))+pctChg+'%)';
+            }
+          }
+        }
+      },
+      scales:{
+        y:{grid:{color:'rgba(0,0,0,0.06)'}, ticks:{callback:v=>fmt(v)},
+           title:{display:true,text:'Cases/month (avg)',font:{size:11}}},
+        x:{grid:{display:false}, ticks:{font:{size:10}}}
+      }
+    }
+  });
+
+  // ============================================================
+  //  CHART 3 — AgF Deflection Rate (Aug-26 to Apr-27)
+  // ============================================================
+  const chart3 = new Chart(document.getElementById('chart3'), {
+    type:'bar',
+    data:{
+      labels: FY27_AGF.map(m=>m.label),
+      datasets:[
+        {
+          label:'Deflection rate %',
+          data: FY27_AGF.map(m=>m.defl),
+          backgroundColor: FY27_AGF.map(m=>m.defl>=68?'rgba(21,129,88,0.75)':'rgba(68,114,196,0.6)'),
+          borderWidth:0, yAxisID:'y',
+          order:1
+        },
+        {
+          label:'Total interactions',
+          data: FY27_AGF.map(m=>m.total),
+          type:'line',
+          borderColor:'#ED7D31', backgroundColor:'transparent',
+          borderWidth:2, pointRadius:3, yAxisID:'y2', order:0
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{position:'bottom', labels:{font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{label:ctx=>{
+          if(ctx.datasetIndex===0) return ' Deflection: '+ctx.raw.toFixed(1)+'%';
+          return ' Interactions: '+fmt(ctx.raw);
+        }}}
+      },
+      scales:{
+        y:{min:0,max:100, position:'left', ticks:{callback:v=>v+'%',font:{size:10}},
+           grid:{color:'rgba(0,0,0,0.06)'},
+           title:{display:true,text:'Deflection %',font:{size:10}}},
+        y2:{min:0, position:'right', ticks:{callback:v=>fmt(v),font:{size:10}},
+            grid:{display:false},
+            title:{display:true,text:'Total interactions',font:{size:10}}},
+        x:{grid:{display:false}, ticks:{font:{size:10}}}
+      }
+    }
+  });
+
+  // ============================================================
+  //  CHART 4 — Capacity Freed vs Redeployed (quarterly)
+  // ============================================================
+  const chart4 = new Chart(document.getElementById('chart4'), {
+    type:'bar',
+    data:{
+      labels:['Q1 FY27','Q2 FY27','Q3 FY27','Q4 FY27'],
+      datasets:[
+        {label:'Redeployed to AgF Support', data:[0,0,0,0], backgroundColor:'rgba(21,129,88,0.75)', borderWidth:0},
+        {label:'Buffer retained',           data:[0,0,0,0], backgroundColor:'rgba(68,114,196,0.45)', borderWidth:0},
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{position:'bottom', labels:{font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{label:ctx=>' '+ctx.dataset.label+': '+fmt(ctx.raw)+' cases/mo'}}
+      },
+      scales:{
+        x:{stacked:true, grid:{display:false}, ticks:{font:{size:10}}},
+        y:{stacked:true, grid:{color:'rgba(0,0,0,0.06)'}, ticks:{callback:v=>fmt(v),font:{size:10}},
+           title:{display:true,text:'Cases/month freed',font:{size:10}}}
+      }
+    }
+  });
+
+  // ============================================================
+  //  CHART 5 — Volume Change Drivers (horizontal bars)
+  // ============================================================
+  const driversData = [...VOLUME_DRIVERS].sort((a,b)=>a.delta-b.delta);
+  const chart5 = new Chart(document.getElementById('chart5'), {
+    type:'bar',
+    data:{
+      labels: driversData.map(d=>d.label),
+      datasets:[{
+        label:'Cases (FY26→FY27)',
+        data: driversData.map(d=>d.delta),
+        backgroundColor: driversData.map(d=>DRIVER_COLOURS[d.cat]||'#999'),
+        borderWidth:0,
+        borderRadius:2,
+      }]
+    },
+    options:{
+      indexAxis:'y',
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{
+          label:ctx=>{
+            const d = driversData[ctx.dataIndex];
+            return ' '+d.cat+': '+sign(ctx.raw)+fmt(ctx.raw)+' cases';
+          }
+        }}
+      },
+      scales:{
+        x:{grid:{color:'rgba(0,0,0,0.06)'}, ticks:{callback:v=>sign(v)+fmt(v),font:{size:10}},
+           title:{display:true,text:'Change in cases (Feb-Mar period)',font:{size:11}}},
+        y:{grid:{display:false}, ticks:{font:{size:10}}}
+      }
+    }
+  });
+
+  // ── Legend for Chart 5 ──
+  const legendHtml = Object.entries(DRIVER_COLOURS).map(([cat,col])=>
+    `<div class="origin-badge"><span style="background:${col};"></span>${cat}</div>`
+  ).join('');
+  document.getElementById('chart5').insertAdjacentHTML('afterend',
+    `<div class="origin-legend" style="margin-top:10px;">${legendHtml}</div>`);
+
+  // ============================================================
+  //  UPDATE FUNCTION — runs on every slider change
+  // ============================================================
+  function update() {
+    const baseline    = parseInt(document.getElementById('baselineSlider').value);
+    const deflRate    = parseInt(document.getElementById('deflectionSlider').value);
+    const agfGrowth   = parseInt(document.getElementById('agfGrowthSlider').value);
+    const redeployPct = parseInt(document.getElementById('redeploySlider').value);
+
+    const totalInteractions = Math.round(baseline * (1 + agfGrowth/100));
+    const deflected         = Math.round(totalInteractions * deflRate/100);
+    const humanLoad         = totalInteractions - deflected;
+    const freedVsPeak       = Math.max(0, PEAK_FY26 - humanLoad);
+    const freedVsBase       = Math.max(0, baseline - humanLoad);
+    const redeployed        = Math.round(freedVsPeak * redeployPct/100);
+    const buffer            = freedVsPeak - redeployed;
+
+    // ── Slider display labels ──
+    document.getElementById('baselineDisplay').textContent  = fmt(baseline);
+    document.getElementById('deflectionDisplay').textContent = deflRate+'%';
+    document.getElementById('agfGrowthDisplay').textContent  = '+'+agfGrowth+'%';
+    document.getElementById('redeployDisplay').textContent   = redeployPct+'%';
+
+    document.getElementById('baselineSublabel').textContent =
+      baseline === BASELINE_APR26 ? 'Apr-26 actual (most recent month)' :
+      baseline < BASELINE_APR26   ? 'Below Apr-26 actual' : 'Above Apr-26 actual';
+
+    document.getElementById('deflectionSublabel').textContent =
+      `AgF resolves ${deflRate}% → ${fmt(deflected)} deflected, ${fmt(humanLoad)} reach humans`;
+
+    document.getElementById('agfGrowthSublabel').textContent =
+      agfGrowth === 0 ? 'No additional routing growth' :
+      `${fmt(totalInteractions)} total interactions routed through AgF`;
+
+    document.getElementById('redeploySublabel').textContent =
+      redeployPct === 0 ? 'No redeployment — all buffer retained' :
+      `${fmt(redeployed)} cases/mo directed to Agentforce Support team`;
+
+    // ── Story banner ──
+    document.getElementById('storyVolume').textContent = fmt(totalInteractions);
+    document.getElementById('storyVolumeDetail').textContent =
+      agfGrowth > 0 ? `${fmt(baseline)} baseline × +${agfGrowth}% AgF growth` : `${fmt(baseline)} baseline (no growth applied)`;
+
+    document.getElementById('storyDeflected').textContent = fmt(deflected);
+    document.getElementById('storyDeflectedDetail').textContent =
+      `${deflRate}% deflection rate · FY27 avg: 68.6%`;
+
+    const diffVsPeak = humanLoad - PEAK_FY26;
+    const diffVsBase = humanLoad - BASELINE_APR26;
+    document.getElementById('storyHuman').textContent = fmt(humanLoad);
+    document.getElementById('storyHumanDetail').textContent =
+      `${sign(diffVsPeak)}${fmt(diffVsPeak)} vs FY26 peak · ${sign(diffVsBase)}${fmt(diffVsBase)} vs Apr-26`;
+
+    document.getElementById('storyFreed').textContent = freedVsPeak > 0 ? '+'+fmt(freedVsPeak) : '0';
+    document.getElementById('storyFreedDetail').textContent =
+      freedVsPeak > 0 ? `cases/mo freed vs FY26 peak of ${fmt(PEAK_FY26)}` : 'Human load exceeds FY26 peak';
+
+    // ── Summary card ──
+    document.getElementById('snapInbound').innerHTML =
+      `${fmt(totalInteractions)} <span class="delta ${totalInteractions>BASELINE_APR26?'warn':'good'}">${sign(totalInteractions-BASELINE_APR26)}${fmt(totalInteractions-BASELINE_APR26)}</span>`;
+    document.getElementById('snapVsPeak').innerHTML  =
+      `${sign(humanLoad-PEAK_FY26)}${fmt(humanLoad-PEAK_FY26)} <span class="delta ${humanLoad<PEAK_FY26?'good':'warn'}">vs ${fmt(PEAK_FY26)}</span>`;
+    document.getElementById('snapDeflected').textContent = fmt(deflected)+'/mo';
+    document.getElementById('snapDeflRate').innerHTML   =
+      `${deflRate}% <span class="delta ${deflRate>=68?'good':'warn'}">${sign(deflRate-68)}${deflRate-68} pp vs FY27 avg</span>`;
+    document.getElementById('snapHuman').innerHTML      =
+      `${fmt(humanLoad)} <span class="delta ${humanLoad<FY26_AVG?'good':'warn'}">${sign(humanLoad-FY26_AVG)}${fmt(humanLoad-FY26_AVG)} vs FY26 avg</span>`;
+    document.getElementById('snapFreed').textContent    =
+      freedVsPeak>0 ? `+${fmt(freedVsPeak)} cases/mo` : 'No capacity freed vs peak';
+    document.getElementById('snapRedeployed').textContent = fmt(redeployed)+' cases/mo ('+redeployPct+'%)';
+    document.getElementById('snapBuffer').textContent     = fmt(buffer)+' cases/mo';
+
+    // ── Chart 4: Capacity Freed vs Redeployed ──
+    // Rough quarterly estimate: apply slider to each quarter's implied human load
+    // Q1 = Feb-Apr 2027, Q2 = May-Jul, Q3 = Aug-Oct, Q4 = Nov-Jan (FY27 quarters)
+    // We don't have quarter-level inflow data, so apply uniform slider values
+    const qFreed = [freedVsPeak, freedVsPeak*0.95, freedVsPeak*1.05, freedVsPeak*1.10];
+    chart4.data.datasets[0].data = qFreed.map(f=>Math.round(f*redeployPct/100));
+    chart4.data.datasets[1].data = qFreed.map(f=>Math.round(f*(1-redeployPct/100)));
+    chart4.update('none');
+  }
+
+  // ── Initial render ──
+  update();
+</script>
+</body>
+</html>

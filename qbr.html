@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Success QBR — FY27 Q1</title>
+  <style>
+    :root {
+      --sf-blue:      #058DC7;
+      --sf-dark-blue: #032D60;
+      --sf-green:     #158158;
+      --sf-bg:        #f4f7fb;
+      --sf-white:     #FFFFFF;
+      --sf-subtle:    #5A7FA8;
+      --sf-mid-grey:  #DDEBFF;
+      --nav-w:        220px;
+      --header-h:     56px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: var(--sf-bg); color: var(--sf-dark-blue); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+    /* ── Header ── */
+    .sf-header {
+      height: var(--header-h);
+      background: var(--sf-dark-blue);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; flex-shrink: 0; z-index: 10;
+    }
+    .sf-header-logo { color: white; font-size: 17px; font-weight: 700; font-style: italic; letter-spacing: 0.04em; }
+    .sf-header-center { color: white; font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+    .sf-header-right { color: #a8c4e0; font-size: 12px; text-align: right; }
+
+    /* ── Body layout ── */
+    .body-row { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--nav-w); background: var(--sf-white);
+      border-right: 1px solid #d8e8f8;
+      display: flex; flex-direction: column;
+      flex-shrink: 0; overflow-y: auto;
+    }
+    .nav-section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: #a0b4c8;
+      padding: 18px 16px 6px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 16px; cursor: pointer;
+      font-size: 13px; color: var(--sf-dark-blue);
+      border-left: 3px solid transparent;
+      transition: background 0.15s, border-color 0.15s;
+      text-decoration: none;
+    }
+    .nav-item:hover { background: #f0f7ff; }
+    .nav-item.active { background: #e8f2ff; border-left-color: var(--sf-blue); font-weight: 700; color: var(--sf-blue); }
+    .nav-item .nav-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .nav-divider { height: 1px; background: #e8f0f8; margin: 8px 16px; }
+    .nav-footer {
+      margin-top: auto; padding: 16px; font-size: 10px; color: #a0b4c8; border-top: 1px solid #e8f0f8;
+    }
+
+    /* ── Content area ── */
+    .content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+    /* iframe fills remaining space */
+    .content iframe {
+      flex: 1; border: none; width: 100%; height: 100%;
+    }
+
+    /* placeholder panels for sections not yet built */
+    .placeholder {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 16px; color: var(--sf-subtle);
+    }
+    .placeholder-icon { font-size: 48px; opacity: 0.3; }
+    .placeholder-title { font-size: 18px; font-weight: 700; color: var(--sf-dark-blue); opacity: 0.5; }
+    .placeholder-sub { font-size: 13px; opacity: 0.6; }
+
+    /* overview panel */
+    .overview-panel {
+      flex: 1; overflow-y: auto; padding: 32px;
+    }
+    .overview-title { font-size: 22px; font-weight: 700; color: var(--sf-dark-blue); margin-bottom: 4px; }
+    .overview-sub { font-size: 13px; color: var(--sf-subtle); margin-bottom: 28px; }
+    .overview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+    .metric-card {
+      background: var(--sf-white); border-radius: 6px; padding: 18px 20px;
+      box-shadow: 0 2px 8px rgba(3,45,96,0.08);
+      border-top: 3px solid var(--sf-blue);
+    }
+    .metric-card.green { border-top-color: var(--sf-green); }
+    .metric-card.amber { border-top-color: #ED7D31; }
+    .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sf-subtle); margin-bottom: 6px; }
+    .metric-value { font-size: 28px; font-weight: 700; color: var(--sf-dark-blue); }
+    .metric-delta { font-size: 12px; margin-top: 4px; }
+    .metric-delta.good { color: var(--sf-green); }
+    .metric-delta.warn { color: #c85000; }
+    .metric-sub { font-size: 11px; color: var(--sf-subtle); margin-top: 2px; }
+
+    .section-heading {
+      font-size: 13px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--sf-dark-blue);
+      margin-bottom: 12px; padding-bottom: 6px;
+      border-bottom: 2px solid var(--sf-mid-grey);
+    }
+    .team-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 28px; }
+    .team-card {
+      background: var(--sf-white); border-radius: 6px; padding: 16px 18px;
+      box-shadow: 0 2px 8px rgba(3,45,96,0.08); cursor: pointer;
+      transition: box-shadow 0.15s; border-left: 4px solid transparent;
+    }
+    .team-card:hover { box-shadow: 0 4px 16px rgba(3,45,96,0.14); }
+    .team-card.support { border-left-color: #058DC7; }
+    .team-card.architects { border-left-color: #158158; }
+    .team-card.guides { border-left-color: #7030A0; }
+    .team-card.onboarding { border-left-color: #ED7D31; }
+    .team-card.readiness { border-left-color: #b8860b; }
+    .team-card-name { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+    .team-card-stat { font-size: 11px; color: var(--sf-subtle); line-height: 1.7; }
+    .team-card-cta { font-size: 11px; color: var(--sf-blue); margin-top: 10px; font-weight: 600; }
+
+    .asks-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .ask-card {
+      background: var(--sf-white); border-radius: 6px; padding: 14px 16px;
+      box-shadow: 0 2px 6px rgba(3,45,96,0.07);
+      border-left: 3px solid #ED7D31;
+    }
+    .ask-team { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #ED7D31; margin-bottom: 4px; }
+    .ask-text { font-size: 12px; color: var(--sf-dark-blue); line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+<div class="sf-header">
+  <div class="sf-header-logo">salesforce</div>
+  <div class="sf-header-center">Customer Success — FY27 Q1 Business Review</div>
+  <div class="sf-header-right">Q1 FY27 · May 2026</div>
+</div>
+
+<div class="body-row">
+
+  <!-- ── Sidebar nav ── -->
+  <nav class="sidebar">
+    <div class="nav-section-label">Overview</div>
+    <a class="nav-item active" onclick="show('overview')">
+      <span class="nav-dot" style="background:#058DC7;"></span>Business Update
+    </a>
+
+    <div class="nav-divider"></div>
+    <div class="nav-section-label">Teams</div>
+
+    <a class="nav-item" onclick="show('support')">
+      <span class="nav-dot" style="background:#058DC7;"></span>Support
+    </a>
+    <a class="nav-item" onclick="show('architects')">
+      <span class="nav-dot" style="background:#158158;"></span>Architects
+    </a>
+    <a class="nav-item" onclick="show('guides')">
+      <span class="nav-dot" style="background:#7030A0;"></span>Guides
+    </a>
+    <a class="nav-item" onclick="show('onboarding')">
+      <span class="nav-dot" style="background:#ED7D31;"></span>Onboarding
+    </a>
+    <a class="nav-item" onclick="show('readiness')">
+      <span class="nav-dot" style="background:#b8860b;"></span>Readiness
+    </a>
+
+    <div class="nav-footer">FY27 Q1 · Built with Claude Code</div>
+  </nav>
+
+  <!-- ── Content panels ── -->
+  <div class="content">
+
+    <!-- Overview -->
+    <div id="panel-overview" class="overview-panel">
+      <div class="overview-title">FY27 Q1 — Business Update</div>
+      <div class="overview-sub">Customer Success · All Teams · Period ending 26 April 2026</div>
+
+      <div class="section-heading">Platform Headline Metrics</div>
+      <div class="overview-grid">
+        <div class="metric-card amber">
+          <div class="metric-label">Service Cloud Inbound</div>
+          <div class="metric-value">10,205</div>
+          <div class="metric-delta good">−47% vs FY26 peak</div>
+          <div class="metric-sub">cases/month · Apr-26</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">AgF Deflection Rate</div>
+          <div class="metric-value">68.6%</div>
+          <div class="metric-delta good">H&T channel · FY27 avg</div>
+          <div class="metric-sub">25,539–62,627 interactions/mo</div>
+        </div>
+        <div class="metric-card green">
+          <div class="metric-label">Architect Backlog</div>
+          <div class="metric-value">374</div>
+          <div class="metric-delta warn">262 assigned · 112 unassigned</div>
+          <div class="metric-sub">cases · 26 Apr 2026</div>
+        </div>
+      </div>
+
+      <div class="section-heading">Team Summaries</div>
+      <div class="team-row">
+        <div class="team-card support" onclick="show('support')">
+          <div class="team-card-name" style="color:#058DC7;">Support</div>
+          <div class="team-card-stat">
+            Inbound: 10,205/mo ↓47% vs peak<br>
+            AgF deflecting 68.6% of H&T volume<br>
+            Capacity redeployed to AgF Support team
+          </div>
+          <div class="team-card-cta">View detail →</div>
+        </div>
+        <div class="team-card architects" onclick="show('architects')">
+          <div class="team-card-name" style="color:#158158;">Architects</div>
+          <div class="team-card-stat">
+            Backlog: 374 cases (262 assigned)<br>
+            Throughput: 83 closures/week<br>
+            25% AI capacity win-back achieved
+          </div>
+          <div class="team-card-cta">View simulator →</div>
+        </div>
+        <div class="team-card guides" onclick="show('guides')">
+          <div class="team-card-name" style="color:#7030A0;">Guides</div>
+          <div class="team-card-stat">
+            Content to be added<br>
+            &nbsp;<br>&nbsp;
+          </div>
+          <div class="team-card-cta">View detail →</div>
+        </div>
+        <div class="team-card onboarding" onclick="show('onboarding')">
+          <div class="team-card-name" style="color:#ED7D31;">Onboarding</div>
+          <div class="team-card-stat">
+            Content to be added<br>
+            &nbsp;<br>&nbsp;
+          </div>
+          <div class="team-card-cta">View detail →</div>
+        </div>
+        <div class="team-card readiness" onclick="show('readiness')">
+          <div class="team-card-name" style="color:#b8860b;">Readiness</div>
+          <div class="team-card-stat">
+            Content to be added<br>
+            &nbsp;<br>&nbsp;
+          </div>
+          <div class="team-card-cta">View detail →</div>
+        </div>
+      </div>
+
+      <div class="section-heading">Cross-Team Asks</div>
+      <div class="asks-grid">
+        <div class="ask-card">
+          <div class="ask-team">Support</div>
+          <div class="ask-text">Placeholder — add investment ask or decision needed</div>
+        </div>
+        <div class="ask-card">
+          <div class="ask-team">Architects</div>
+          <div class="ask-text">Placeholder — add investment ask or decision needed</div>
+        </div>
+        <div class="ask-card">
+          <div class="ask-team">Guides</div>
+          <div class="ask-text">Placeholder — add investment ask or decision needed</div>
+        </div>
+        <div class="ask-card">
+          <div class="ask-team">Onboarding</div>
+          <div class="ask-text">Placeholder — add investment ask or decision needed</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Support (iframe) -->
+    <div id="panel-support" style="display:none; flex:1; overflow:hidden; flex-direction:column;">
+      <iframe src="support_simulator.html" style="flex:1; border:none; width:100%; height:100%;"></iframe>
+    </div>
+
+    <!-- Architects (iframe) -->
+    <div id="panel-architects" style="display:none; flex:1; overflow:hidden; flex-direction:column;">
+      <iframe src="backlog_projection.html" style="flex:1; border:none; width:100%; height:100%;"></iframe>
+    </div>
+
+    <!-- Guides placeholder -->
+    <div id="panel-guides" class="placeholder" style="display:none;">
+      <div class="placeholder-icon">📘</div>
+      <div class="placeholder-title">Guides</div>
+      <div class="placeholder-sub">Section to be built</div>
+    </div>
+
+    <!-- Onboarding placeholder -->
+    <div id="panel-onboarding" class="placeholder" style="display:none;">
+      <div class="placeholder-icon">🚀</div>
+      <div class="placeholder-title">Onboarding</div>
+      <div class="placeholder-sub">Section to be built</div>
+    </div>
+
+    <!-- Readiness placeholder -->
+    <div id="panel-readiness" class="placeholder" style="display:none;">
+      <div class="placeholder-icon">✅</div>
+      <div class="placeholder-title">Readiness</div>
+      <div class="placeholder-sub">Section to be built</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  function show(section) {
+    // Hide all panels
+    document.querySelectorAll('.content > div').forEach(p => p.style.display = 'none');
+    // Show target
+    const panel = document.getElementById('panel-' + section);
+    panel.style.display = section === 'overview' ? 'block' : 'flex';
+
+    // Update nav active state
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+  }
+</script>
+</body>
+</html>
